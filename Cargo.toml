@@ -15,7 +15,8 @@ path = "src/main.rs"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "fs", "process", "parking_lot"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "fs", "process", "parking_lot", "signal"] }
+tokio-util = "0.7"
 
 chrono = { version = "0.4", features = ["serde", "clock"] }
 
@@ -29,8 +30,6 @@ dotenv = "0.15.0"
 
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-
-ctrlc = "3.4"
 
 remain = "0.2"
 strum = { version = "0.26", features = ["derive"] }

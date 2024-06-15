@@ -2,7 +2,7 @@ use crate::{AlarmState, Error, Result};
 use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter};
-use tracing::error;
+use tracing::{error, info};
 
 #[remain::sorted]
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq, Eq, Hash, Display, EnumIter)]
@@ -29,6 +29,7 @@ pub async fn emit(alarms: Vec<AlarmState>, auth: &str, service_id: &str) {
         return;
     }
 
+    info!("Alarm ({service_id}): {alarms:#?}");
     if let Err(err) = webhook(&alarms, auth, service_id).await {
         error!("Unable to send webhook for alarms: {err} - {alarms:#?}")
     }

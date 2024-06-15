@@ -1,4 +1,4 @@
-# Alarms
+# Alarms V0
 
 *This is a draft, it's still in progress*
 
@@ -112,13 +112,14 @@ The WebHook won't be retried, even if a non 200 response is received.
 
 TODO
 
-- Retry WebHook if a non 200 response is received
-- Integrate with service instance size limits (RAM and CPU), allowing for percentage thresholds
-- Have more ergonomic interface than environment variables
-- Endpoint to get current alarm state
-- Period in seconds, not minutes
-- Don't fetch usage every minute if not needed, use GraphQL API's start and end date more optimally
 - Healthcheck failure and cost alarms
 - Pager-Duty + Discord + Slack + Email
+- Retry WebHook if a non 200 response is received
+- Endpoint to get current alarm state
+
+- Integrate with service instance size limits (RAM and CPU), allowing for percentage thresholds
+- Have more ergonomic interface than environment variables
 - Make GraphQL subscription for it
 - Toast & Notification in front-end
+- Period in seconds, not minutes
+- Don't fetch usage every minute if not needed, use GraphQL API's start and end date more optimally

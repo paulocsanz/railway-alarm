@@ -29,7 +29,7 @@ impl Railway {
 
         let response = reqwest::Client::new()
             .post("https://backboard.railway.app/graphql/v2")
-            .header("Authorization", format!("Bearer {token}",))
+            .header("Authorization", format!("Bearer {token}"))
             .json(&json)
             .fetch_mode_no_cors()
             .send()
@@ -43,7 +43,8 @@ impl Railway {
             ));
         }
 
-        let response: RailwayResponse<T> = response.json().await?;
+        let json: serde_json::Value = response.json().await?;
+        let response: RailwayResponse<T> = serde_json::from_value(json)?;
         debug!("Output: {response:#?}");
 
         if !response.errors.is_empty() {

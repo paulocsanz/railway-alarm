@@ -11,13 +11,11 @@ pub use railway::{
     Railway, RailwayError, RailwayResponse,
 };
 
-use chrono::{TimeDelta, Utc};
+use chrono::{SubsecRound, TimeDelta, Timelike, Utc};
 use derive_get::Getters;
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::HashMap, collections::VecDeque, sync::atomic::AtomicBool, sync::atomic::Ordering,
-    sync::Arc, time::Duration,
-};
+use std::{collections::HashMap, collections::VecDeque, time::Duration};
+use tokio_util::sync::CancellationToken;
 use tracing::error;
 
 #[derive(Getters, Serialize, Deserialize, Clone, Debug)]
@@ -60,10 +58,14 @@ impl AlarmPayload {
 const MIN_PERIOD_SECS: u16 = 60;
 
 pub async fn run() -> Result<()> {
-    // Shutdown handler
-    let shutdown = Arc::new(AtomicBool::new(false));
-    let shutdown_clone = Arc::clone(&shutdown);
-    ctrlc::set_handler(move || shutdown_clone.store(true, Ordering::Relaxed))?;
+    let shutdown = CancellationToken::new();
+    let shutdown_clone = shutdown.clone();
+    let shutdown_task = tokio::spawn(async move {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("unable to monitor ctrl+c");
+        shutdown_clone.cancel();
+    });
 
     let (railway_api_token, alarm_token, project_id, service_id) = required_env_vars()?;
 
@@ -72,19 +74,28 @@ pub async fn run() -> Result<()> {
         .map(|(alarm, config)| (alarm, AlarmPayload::from_config(config)))
         .collect();
 
-    let mut start_date = Utc::now();
-    while shutdown.load(Ordering::Relaxed) {
+    let mut start_date = Utc::now()
+        .round_subsecs(0)
+        .with_second(0)
+        .ok_or(Error::DateTruncation)?
+        .checked_add_signed(TimeDelta::new(-i64::from(MIN_PERIOD_SECS), 0)
+                    .ok_or(Error::InvalidTimeDelta(-i64::from(MIN_PERIOD_SECS), 0))?)
+            .ok_or(Error::DateOutOfRange(Utc::now(), -i64::from(MIN_PERIOD_SECS)))?;
+    loop {
         let mut alarms = HashMap::new();
 
-        match Service::usage(
-            &railway_api_token,
-            &project_id,
-            &service_id,
-            start_date,
-            MIN_PERIOD_SECS,
-        )
-        .await
-        {
+        let result = tokio::select! {
+            result = Service::usage(
+                &railway_api_token,
+                &project_id,
+                &service_id,
+                start_date,
+                MIN_PERIOD_SECS,
+            ) => result,
+            _ = shutdown.cancelled() => break,
+        };
+
+        match result {
             Ok(usage) => {
                 for (alarm, payload) in &mut alarm_payloads {
                     enum Ordering {
@@ -156,22 +167,13 @@ pub async fn run() -> Result<()> {
             }
         }
 
-        alarm::emit(
-            alarms.into_iter().map(|(_, v)| v).collect(),
-            &alarm_token,
-            &service_id,
-        )
-        .await;
-
-        // Casting like this is dangerous, but since we ensure that the min value is 0 we can trust that the i64 will fit u64 without wrapping
-        let secs_since_last: u64 = Utc::now()
-            .signed_duration_since(start_date)
-            .num_seconds()
-            .max(0) as u64;
-        if secs_since_last < MIN_PERIOD_SECS.into() {
-            // Figure out how much to sleep for the interval
-            let secs_to_sleep = u64::from(MIN_PERIOD_SECS) - secs_since_last;
-            tokio::time::sleep(Duration::from_secs(secs_to_sleep)).await;
+        tokio::select! {
+            _ = alarm::emit(
+                alarms.into_iter().map(|(_, v)| v).collect(),
+                &alarm_token,
+                &service_id,
+            ) => {},
+            _ = shutdown.cancelled() => break,
         }
 
         // Get next minute
@@ -182,7 +184,25 @@ pub async fn run() -> Result<()> {
                     .ok_or(Error::InvalidTimeDelta(MIN_PERIOD_SECS.into(), 0))?,
             )
             .ok_or(Error::DateOutOfRange(start_date, MIN_PERIOD_SECS.into()))?;
+
+        // Casting like this is dangerous, but since we ensure that the min value is 0 we can trust that the i64 will fit u64 without wrapping
+        let secs_since_last: u64 = Utc::now()
+            .signed_duration_since(start_date)
+            .num_seconds()
+            .max(0) as u64;
+        if secs_since_last < MIN_PERIOD_SECS.into() {
+            // Figure out how much to sleep for the interval
+            let secs_to_sleep = u64::from(MIN_PERIOD_SECS) - secs_since_last;
+            let sleep = tokio::time::sleep(Duration::from_secs(secs_to_sleep));
+            tokio::pin!(sleep);
+            tokio::select! {
+                _ = shutdown.cancelled() => break,
+                _ = &mut sleep => {},
+            }
+        }
     }
+
+    shutdown_task.abort();
 
     Ok(())
 }

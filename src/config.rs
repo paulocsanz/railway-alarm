@@ -45,13 +45,13 @@ pub fn get() -> Result<HashMap<Alarm, AlarmConfig>> {
 
     let mut configs = HashMap::new();
     for alarm in Alarm::iter() {
-        if let Some(value) = std::env::var(dbg!(alarm.to_string()))
+        if let Some(value) = std::env::var(alarm.to_string())
             .ok()
             .map(|value| value.parse::<f64>())
             .transpose()?
         {
             if value != 0. {
-                let period_minutes_env_name = dbg!(format!("{alarm}_PERIOD_MINUTES"));
+                let period_minutes_env_name = format!("{alarm}_PERIOD_MINUTES");
                 let mut period_minutes = std::env::var(&period_minutes_env_name)
                     .ok()
                     .map(|value| value.parse::<u16>())
@@ -62,7 +62,7 @@ pub fn get() -> Result<HashMap<Alarm, AlarmConfig>> {
                     warn!("{period_minutes_env_name} can't be below {MIN_PERIOD_MINUTES}, setting it to {MIN_PERIOD_MINUTES}");
                 }
 
-                let data_points_env_name = dbg!(format!("{alarm}_DATA_POINTS"));
+                let data_points_env_name = format!("{alarm}_DATA_POINTS");
                 let mut data_points = std::env::var(&data_points_env_name)
                     .ok()
                     .map(|value| value.parse::<u16>())
@@ -73,7 +73,7 @@ pub fn get() -> Result<HashMap<Alarm, AlarmConfig>> {
                     warn!("{data_points_env_name} can't be below {MIN_DATA_POINTS}, setting it to {MIN_DATA_POINTS}");
                 }
 
-                let data_points_to_alarm_env_name = dbg!(format!("{alarm}_DATA_POINTS_TO_ALARM"));
+                let data_points_to_alarm_env_name = format!("{alarm}_DATA_POINTS_TO_ALARM");
                 let mut data_points_to_alarm = std::env::var(&data_points_to_alarm_env_name)
                     .ok()
                     .map(|value| value.parse::<u16>())
@@ -96,7 +96,7 @@ pub fn get() -> Result<HashMap<Alarm, AlarmConfig>> {
             }
         }
     }
-    Ok(configs)
+    Ok(dbg!(configs))
 }
 
 #[cfg(test)]

@@ -53,8 +53,7 @@ impl Service {
                     .ok_or(Error::InvalidTimeDelta(period_secs.into(), 0))?,
             )
             .ok_or(Error::DateOutOfRange(start_date, period_secs.into()))?;
-        // "2024-06-13T20:12:00Z",
-        let response: Vec<UsageResponse> = Railway::query(
+        let response: UsageResponse = Railway::query(
             token,
             serde_json::json!({
                 "query": USAGE,
@@ -85,10 +84,16 @@ impl Service {
 
         #[derive(Serialize, Deserialize, Debug)]
         #[serde(rename_all = "camelCase")]
-        pub struct UsageResponse {
+        pub struct IndividualUsage {
             measurement: MeasurementResponse,
             tags: TagsResponse,
             value: f64,
+        }
+
+        #[derive(Serialize, Deserialize, Debug)]
+        #[serde(rename_all = "camelCase")]
+        pub struct UsageResponse {
+            usage: Vec<IndividualUsage>
         }
 
         let mut cpu = None;
@@ -96,7 +101,7 @@ impl Service {
         let mut disk_gb = None;
         let mut ingress_gb = None;
         let mut egress_gb = None;
-        for usage in response {
+        for usage in response.usage {
             if usage.tags.service_id.as_deref() == Some(service_id) {
                 match usage.measurement {
                     MeasurementResponse::CpuUsage => cpu = Some(usage.value),

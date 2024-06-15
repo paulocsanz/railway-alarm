@@ -7,16 +7,16 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[remain::sorted]
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error(transparent)]
-    CtrlC(#[from] ctrlc::Error),
     #[error("date out of range: {0} - {1}")]
-    DateOutOfRange(DateTime<Utc>, u64),
+    DateOutOfRange(DateTime<Utc>, i64),
+    #[error("date truncation")]
+    DateTruncation,
     #[error(transparent)]
     DotEnv(#[from] dotenv::Error),
     #[error(transparent)]
     HMacInvalidLength(#[from] hmac::digest::InvalidLength),
     #[error("invalid time delta: secs = {0}, nano = {1}")]
-    InvalidTimeDelta(u64, u64),
+    InvalidTimeDelta(i64, i64),
     #[error(transparent)]
     Json(#[from] serde_json::Error),
     #[error("missing env var: {0}")]
