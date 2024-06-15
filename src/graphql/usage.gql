@@ -1,0 +1,9 @@
+query usage($projectId: String!, $startDate: DateTime!, $endDate: DateTime!) {
+  usage(startDate: $startDate, endDate: $endDate, groupBy: [SERVICE_ID], includeDeleted: false, measurements: [MEMORY_LIMIT_GB, MEMORY_USAGE_GB, DISK_USAGE_GB, NETWORK_RX_GB, NETWORK_TX_GB], projectId: $projectId, teamId: null, userId: null) {
+    measurement,
+    value,
+    tags {
+      serviceId,
+    }
+  }
+}

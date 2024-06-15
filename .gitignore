@@ -1,0 +1,11 @@
+.env
+.env.local
+target
+.*.swp
+.*.swo
+run.log
+workspace.code-workspace
+bins/
+packages
+priv.key
+pub.key
