@@ -106,7 +106,7 @@ interface Payload {
 }
 ```
 
-The WebHook won't be retried if a non 200 response is received.
+The WebHook won't be retried, even if a non 200 response is received.
 
 ## Future Work
 

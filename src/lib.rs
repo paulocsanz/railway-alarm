@@ -74,7 +74,7 @@ pub async fn run() -> Result<()> {
 
     let mut start_date = Utc::now();
     while shutdown.load(Ordering::Relaxed) {
-        let mut alarms = Vec::new();
+        let mut alarms = HashMap::new();
 
         match Service::usage(
             &railway_api_token,
@@ -93,8 +93,8 @@ pub async fn run() -> Result<()> {
                     }
 
                     let (measured, ordering) = match alarm {
-                        Alarm::CpuLowerLimit => (usage.cpu(), Ordering::Less),
-                        Alarm::CpuUpperLimit => (usage.cpu(), Ordering::Greater),
+                        Alarm::CpuLowerLimitVcpus => (usage.cpu(), Ordering::Less),
+                        Alarm::CpuUpperLimitVcpus => (usage.cpu(), Ordering::Greater),
                         Alarm::DiskLowerLimitGb => (usage.disk_gb(), Ordering::Less),
                         Alarm::DiskUpperLimitGb => (usage.disk_gb(), Ordering::Greater),
                         Alarm::EgressLowerLimitGb => (usage.egress_gb(), Ordering::Less),
@@ -132,11 +132,11 @@ pub async fn run() -> Result<()> {
                         {
                             if !payload.state() {
                                 payload.state = true;
-                                alarms.push(AlarmState::new(*alarm, payload.state()));
+                                alarms.insert(*alarm, AlarmState::new(*alarm, payload.state()));
                             }
                         } else if payload.state() {
                             payload.state = false;
-                            alarms.push(AlarmState::new(*alarm, payload.state()));
+                            alarms.insert(*alarm, AlarmState::new(*alarm, payload.state()));
                         }
 
                         payload.accumulated = 0.;
@@ -149,13 +149,19 @@ pub async fn run() -> Result<()> {
             }
         }
 
+        // Gets other active alarms to send with the one that changed
         if !alarms.is_empty() {
             for (alarm, payload) in &alarm_payloads {
-                alarms.push(AlarmState::new(*alarm, payload.state()));
+                alarms.insert(*alarm, AlarmState::new(*alarm, payload.state()));
             }
         }
 
-        alarm::emit(alarms, &alarm_token, &service_id).await;
+        alarm::emit(
+            alarms.into_iter().map(|(_, v)| v).collect(),
+            &alarm_token,
+            &service_id,
+        )
+        .await;
 
         // Casting like this is dangerous, but since we ensure that the min value is 0 we can trust that the i64 will fit u64 without wrapping
         let secs_since_last: u64 = Utc::now()

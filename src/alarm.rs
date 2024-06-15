@@ -7,11 +7,12 @@ use tracing::error;
 #[remain::sorted]
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq, Eq, Hash, Display, EnumIter)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
 pub enum Alarm {
     CostLowerLimit,
     CostUpperLimit,
-    CpuLowerLimit,
-    CpuUpperLimit,
+    CpuLowerLimitVcpus,
+    CpuUpperLimitVcpus,
     DiskLowerLimitGb,
     DiskUpperLimitGb,
     EgressLowerLimitGb,
