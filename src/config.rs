@@ -1,14 +1,13 @@
-use crate::{Alarm, Result};
+use crate::{Alarm, Error, Result};
 use derive_get::Getters;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use strum::IntoEnumIterator;
 use tracing::warn;
 
-#[derive(Getters, Serialize, Deserialize, Copy, Clone, Debug)]
+#[derive(Getters, Serialize, Deserialize, Clone, Debug)]
 pub struct AlarmConfig {
-    #[copy]
-    value: f64,
+    value: String,
     #[copy]
     period_minutes: u16,
     #[copy]
@@ -26,74 +25,113 @@ const MIN_DATA_POINTS: u16 = 1;
 const DEFAULT_DATA_POINTS_TO_ALARM: u16 = 3;
 const MIN_DATA_POINTS_TO_ALARM: u16 = 1;
 
-pub fn get() -> Result<HashMap<Alarm, AlarmConfig>> {
+pub fn required() -> Result<(String, String, String, String)> {
+    let railway_api_token = std::env::var("RAILWAY_API_TOKEN")
+        .map_err(|_| Error::MissingEnvVar("RAILWAY_API_TOKEN"))?;
+    let alarm_token =
+        std::env::var("ALARM_TOKEN").map_err(|_| Error::MissingEnvVar("ALARM_TOKEN"))?;
+
+    let project_id = std::env::var("RAILWAY_PROJECT_ID")
+        .map_err(|_| Error::MissingEnvVar("RAILWAY_PROJECT_ID"))?;
+    let service_id = std::env::var("RAILWAY_SERVICE_ID")
+        .map_err(|_| Error::MissingEnvVar("RAILWAY_SERVICE_ID"))?;
+
+    if std::env::var("WEB_HOOK_URL").is_err() && std::env::var("PAGER_DUTY_TOKEN").is_err() {
+        return Err(Error::MissingEnvVar(
+            "WEB_HOOK_URL or the combination PAGER_DUTY_TOKEN + PAGER_DUTY_SOURCE + PAGER_DUTY_ROUTING_KEY",
+        ));
+    }
+
+    if std::env::var("PAGER_DUTY_TOKEN").is_ok()
+        && (std::env::var("PAGER_DUTY_SOURCE").is_err()
+            || std::env::var("PAGER_DUTY_ROUTING_KEY").is_err())
+    {
+        return Err(Error::MissingEnvVar(
+            "PAGER_DUTY_SOURCE and PAGER_DUTY_ROUTING_KEY are required if PagerDuty is integrated",
+        ));
+    }
+
+    Ok((railway_api_token, alarm_token, project_id, service_id))
+}
+
+pub fn optional() -> Result<HashMap<Alarm, AlarmConfig>> {
     let default_period_minutes = std::env::var("PERIOD_MINUTES")
         .ok()
         .map(|value| value.parse::<u16>())
-        .transpose()?
+        .transpose()
+        .map_err(|err| Error::ParseIntWithMetadata(err, "PERIOD_MINUTES".into()))?
         .unwrap_or(DEFAULT_PERIOD_MINUTES);
     let default_data_points = std::env::var("DATA_POINTS")
         .ok()
         .map(|value| value.parse::<u16>())
-        .transpose()?
+        .transpose()
+        .map_err(|err| Error::ParseIntWithMetadata(err, "DATA_POINTS".into()))?
         .unwrap_or(DEFAULT_DATA_POINTS);
     let default_data_points_to_alarm = std::env::var("DATA_POINTS_TO_ALARM")
         .ok()
         .map(|value| value.parse::<u16>())
-        .transpose()?
+        .transpose()
+        .map_err(|err| Error::ParseIntWithMetadata(err, "DATA_POINTS_TO_ALARM".into()))?
         .unwrap_or(DEFAULT_DATA_POINTS_TO_ALARM);
 
     let mut configs = HashMap::new();
     for alarm in Alarm::iter() {
-        if let Some(value) = std::env::var(alarm.to_string())
-            .ok()
-            .map(|value| value.parse::<f64>())
-            .transpose()?
-        {
-            if value != 0. {
-                let period_minutes_env_name = format!("{alarm}_PERIOD_MINUTES");
-                let mut period_minutes = std::env::var(&period_minutes_env_name)
-                    .ok()
-                    .map(|value| value.parse::<u16>())
-                    .transpose()?
-                    .unwrap_or(default_period_minutes);
-                if period_minutes < MIN_PERIOD_MINUTES {
-                    period_minutes = MIN_PERIOD_MINUTES;
-                    warn!("{period_minutes_env_name} can't be below {MIN_PERIOD_MINUTES}, setting it to {MIN_PERIOD_MINUTES}");
+        if let Some(value) = std::env::var(alarm.to_string()).ok() {
+            // Short term solution to allow both alarm types with the same env var machinery
+            // The correct solution is having a AlarmWithPaylaod type that adds a value tuple to each variant of Alarm
+            if alarm != Alarm::HealthCheckFailed {
+                if let Err(err) = value.parse::<f64>() {
+                    return Err(Error::ParseFloatWithMetadata(err, alarm.to_string()));
                 }
-
-                let data_points_env_name = format!("{alarm}_DATA_POINTS");
-                let mut data_points = std::env::var(&data_points_env_name)
-                    .ok()
-                    .map(|value| value.parse::<u16>())
-                    .transpose()?
-                    .unwrap_or(default_data_points);
-                if data_points < MIN_DATA_POINTS {
-                    data_points = MIN_DATA_POINTS;
-                    warn!("{data_points_env_name} can't be below {MIN_DATA_POINTS}, setting it to {MIN_DATA_POINTS}");
-                }
-
-                let data_points_to_alarm_env_name = format!("{alarm}_DATA_POINTS_TO_ALARM");
-                let mut data_points_to_alarm = std::env::var(&data_points_to_alarm_env_name)
-                    .ok()
-                    .map(|value| value.parse::<u16>())
-                    .transpose()?
-                    .unwrap_or(default_data_points_to_alarm);
-                if data_points_to_alarm < MIN_DATA_POINTS_TO_ALARM {
-                    data_points_to_alarm = MIN_DATA_POINTS_TO_ALARM;
-                    warn!("{data_points_to_alarm_env_name} can't be below {MIN_DATA_POINTS_TO_ALARM}, setting it to {MIN_DATA_POINTS_TO_ALARM}");
-                }
-
-                configs.insert(
-                    alarm,
-                    AlarmConfig {
-                        value,
-                        period_minutes,
-                        data_points,
-                        data_points_to_alarm,
-                    },
-                );
             }
+
+            let period_minutes_env_name = format!("{alarm}_PERIOD_MINUTES");
+            let mut period_minutes = std::env::var(&period_minutes_env_name)
+                .ok()
+                .map(|value| value.parse::<u16>())
+                .transpose()
+                .map_err(|err| Error::ParseIntWithMetadata(err, period_minutes_env_name.clone()))?
+                .unwrap_or(default_period_minutes);
+            if period_minutes < MIN_PERIOD_MINUTES {
+                period_minutes = MIN_PERIOD_MINUTES;
+                warn!("{period_minutes_env_name} can't be below {MIN_PERIOD_MINUTES}, setting it to {MIN_PERIOD_MINUTES}");
+            }
+
+            let data_points_env_name = format!("{alarm}_DATA_POINTS");
+            let mut data_points = std::env::var(&data_points_env_name)
+                .ok()
+                .map(|value| value.parse::<u16>())
+                .transpose()
+                .map_err(|err| Error::ParseIntWithMetadata(err, data_points_env_name.clone()))?
+                .unwrap_or(default_data_points);
+            if data_points < MIN_DATA_POINTS {
+                data_points = MIN_DATA_POINTS;
+                warn!("{data_points_env_name} can't be below {MIN_DATA_POINTS}, setting it to {MIN_DATA_POINTS}");
+            }
+
+            let data_points_to_alarm_env_name = format!("{alarm}_DATA_POINTS_TO_ALARM");
+            let mut data_points_to_alarm = std::env::var(&data_points_to_alarm_env_name)
+                .ok()
+                .map(|value| value.parse::<u16>())
+                .transpose()
+                .map_err(|err| {
+                    Error::ParseIntWithMetadata(err, data_points_to_alarm_env_name.clone())
+                })?
+                .unwrap_or(default_data_points_to_alarm);
+            if data_points_to_alarm < MIN_DATA_POINTS_TO_ALARM {
+                data_points_to_alarm = MIN_DATA_POINTS_TO_ALARM;
+                warn!("{data_points_to_alarm_env_name} can't be below {MIN_DATA_POINTS_TO_ALARM}, setting it to {MIN_DATA_POINTS_TO_ALARM}");
+            }
+
+            configs.insert(
+                alarm,
+                AlarmConfig {
+                    value,
+                    period_minutes,
+                    data_points,
+                    data_points_to_alarm,
+                },
+            );
         }
     }
     Ok(dbg!(configs))

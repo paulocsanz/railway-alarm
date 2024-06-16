@@ -3,6 +3,7 @@ use chrono::{DateTime, TimeDelta, Utc};
 use derive_get::Getters;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter};
+use tracing::warn;
 
 const USAGE: &str = include_str!("../graphql/usage.gql");
 
@@ -93,7 +94,7 @@ impl Service {
         #[derive(Serialize, Deserialize, Debug)]
         #[serde(rename_all = "camelCase")]
         pub struct UsageResponse {
-            usage: Vec<IndividualUsage>
+            usage: Vec<IndividualUsage>,
         }
 
         let mut cpu = None;
@@ -101,8 +102,11 @@ impl Service {
         let mut disk_gb = None;
         let mut ingress_gb = None;
         let mut egress_gb = None;
+
+        let mut any = false;
         for usage in response.usage {
             if usage.tags.service_id.as_deref() == Some(service_id) {
+                any = true;
                 match usage.measurement {
                     MeasurementResponse::CpuUsage => cpu = Some(usage.value),
                     MeasurementResponse::MemoryUsageGb => memory_gb = Some(usage.value),
@@ -111,6 +115,10 @@ impl Service {
                     MeasurementResponse::NetworkTxGb => egress_gb = Some(usage.value),
                 }
             }
+        }
+
+        if !any {
+            warn!("No measurements collected for service {service_id}");
         }
 
         Ok(Usage {

@@ -27,24 +27,33 @@ impl Railway {
     ) -> Result<T> {
         debug!("Executing query: {json:#?}");
 
+        let url = "https://backboard.railway.app/graphql/v2";
         let response = reqwest::Client::new()
-            .post("https://backboard.railway.app/graphql/v2")
+            .post(url)
             .header("Authorization", format!("Bearer {token}"))
             .json(&json)
             .fetch_mode_no_cors()
             .send()
-            .await?;
+            .await
+            .map_err(|err| Error::RailwayFailure(err, url, json.clone()))?;
 
         let status = response.status();
         if status != 200 {
             return Err(Error::RailwayStatusFailure(
                 status.as_u16(),
-                response.text().await?,
+                response
+                    .text()
+                    .await
+                    .map_err(|err| Error::RailwayBody(err, url, json))?,
             ));
         }
 
-        let json: serde_json::Value = response.json().await?;
-        let response: RailwayResponse<T> = serde_json::from_value(json)?;
+        let json: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|err| Error::RailwayBody(err, url, json))?;
+        let response = RailwayResponse::<T>::deserialize(&json)
+            .map_err(|err| Error::JsonWithMetadata(err, json))?;
         debug!("Output: {response:#?}");
 
         if !response.errors.is_empty() {

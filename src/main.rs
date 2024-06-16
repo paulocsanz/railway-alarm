@@ -1,4 +1,4 @@
-use alarms::Result;
+use color_eyre::Result;
 use tracing_subscriber::prelude::*;
 
 #[tokio::main]

@@ -26,9 +26,9 @@ It should also monitor the health-check endpoint and costs, emitting alarms for 
 
   ID of service to monitor
 
-- WEBHOOK_URL
+- WebHook or PagerDuty
 
-  URL of WebHook called when at least one alarm's state changes, won't be required once other channels are integrated, but it's needed for now
+  To trigger any action from the alarm the WebHook and/or PagerDuty integration must be configured, check their sections to properly configure it
 
 ### Thresholds
 
@@ -75,15 +75,41 @@ CPU_UPPER_LIMIT_VCPUS_DATA_POINTS=5 # 25 minutes analyzed in total
 CPU_UPPER_LIMIT_VCPUS_DATA_POINTS_TO_ALARM=3 # If there is a breach for 15 minutes of the 25 (even if non consecutive) triggers alarm
 
 # Will use default period/data-points/data-points to alarm
-CPU_LOWER_LIMIT_VCPUS=0.1 
+CPU_LOWER_LIMIT_VCPUS=0.1
 
 RAM_UPPER_LIMIT_GB=10
 RAM_LOWER_LIMIT_GB=0.1
 ```
 
+### Healthcheck
+
+To set the healthcheck GET endpoint use the `HEALTH_CHECK_FAILED` environment variable. The granular configuration above is also available for it.
+
+The healthcheck endpoint must return a 200 status code to be computed as working.
+
+**Tip: use the same healthcheck you use for railway initial healthcheck test.**
+
+Example:
+
+```
+HEALTH_CHECK_FAILED=https://my-url.com/healchcheck
+```
+
+## PagerDuty Incidents
+
+To configure the PagerDuty integration you must specify the following environment variables
+  - `PAGER_DUTY_TOKEN`: specify the authentication token for PagerDuty's API
+  - `PAGER_DUTY_SOURCE`: the `RAILWAY_PUBLIC_DOMAIN` for the monitored service
+  - `PAGER_DUTY_ROUTING_KEY`: The GUID of one of your PagerDuty Events API V2 integrations.
+     This is the "Integration Key" listed on the Events API V2 integration's detail page.
+
+The environment variable `PAGER_DUTY_URL` can also be set to override the default's PagerDuty endpoint.
+
+An alert event will be created for each alarm state change.
+
 ## WebHook API
 
-The endpoint specified by the environment variable `WEBHOOK_URL` will be called if at least one alarm changed state. All active alarms will be sent in that WebHook, even if their state wasn't the one that changed.
+The endpoint specified by the environment variable `WEB_HOOK_URL` will be called if at least one alarm changed state. All active alarms will be sent in that WebHook, even if their state wasn't the one that changed.
 
 The JSON payload is signed with HMAC SHA256 and sent in the `X-HUG-SIGNATURE-256` HTTP header. The schema of the payload is described below:
 
@@ -112,14 +138,41 @@ The WebHook won't be retried, even if a non 200 response is received.
 
 TODO
 
-- Healthcheck failure and cost alarms
-- Pager-Duty + Discord + Slack + Email
+V0:
+- Discord integration
 - Retry WebHook if a non 200 response is received
-- Endpoint to get current alarm state
+- Add warm-up period leniency for new deployments for healthcheck
+- Healthcheck each replica
+- Allow adding an action to alarm: reboot/redeploy/stop
+    - Reboot unhealthy service instances for example
+    - Reboot on memory leak (if RAM > 80%)
+    - Add one more replica if CPU usage is too large
+    - etc
+- Configure alarm when >=, >, <= or <
+- Add INSUFFICIENT_DATA state
+- Persist alarms, display graphs with them over time
+  - Alarm change is lost if it changed while the alarm service was down, will require manual intervention in pager-duty/WebHook
 
-- Integrate with service instance size limits (RAM and CPU), allowing for percentage thresholds
+V0.5
+- slack + email integration
+- cost alarms
+- Alarm when deployment crashes
+- Endpoint to get current alarm state
+- Integrate horizontal auto-scale with it
+
+V1
 - Have more ergonomic interface than environment variables
-- Make GraphQL subscription for it
+- Make GraphQL subscription for alarms
 - Toast & Notification in front-end
-- Period in seconds, not minutes
+- Integrate with service instance size limits (RAM and CPU), allowing for percentage thresholds
 - Don't fetch usage every minute if not needed, use GraphQL API's start and end date more optimally
+- Add description to alarm/service
+
+V2
+- Period in seconds, not minutes
+- Add percentile based metrics
+- Math expression alarms combining multiple metrics
+    - They all must have same period
+- Alarm based on data sources
+- Alarm on logs
+

@@ -36,3 +36,5 @@ strum = { version = "0.26", features = ["derive"] }
 
 sha2 = "0.10"
 hmac = "0.12"
+
+color-eyre = "0.6"
