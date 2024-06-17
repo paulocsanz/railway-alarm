@@ -41,7 +41,7 @@ pub async fn alarms(
 ) -> Option<HashMap<Alarm, AlarmState>> {
     let mut alarms = HashMap::new();
 
-    // Gets usage or shuts-down if ctrl+c was received
+    // Tests healthcheck endpoint
     if let Some(payload) = alarm_payloads.get_mut(&Alarm::HealthCheckFailed) {
         payload.minutes += period_secs / 60;
 

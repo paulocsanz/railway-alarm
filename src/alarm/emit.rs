@@ -17,7 +17,7 @@ pub async fn emit(
     debug!("Alarm ({service_id}): {alarms:?}");
 
     if let Err(err) = pager_duty(&alarms, service_id).await {
-        error!("Unable to send webhook for alarms: {err} - {alarms:#?}")
+        error!("Unable to send pager duty events for alarms: {err} - {alarms:#?}")
     }
 
     // Populates webhook alarms with all active alarms to allow combining them arbitrarily on the other side
