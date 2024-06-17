@@ -3,7 +3,7 @@ use derive_get::Getters;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use strum::IntoEnumIterator;
-use tracing::warn;
+use tracing::{warn, debug};
 
 #[derive(Getters, Serialize, Deserialize, Clone, Debug)]
 pub struct AlarmConfig {
@@ -33,8 +33,8 @@ pub fn required() -> Result<(String, String, String, String)> {
 
     let project_id = std::env::var("RAILWAY_PROJECT_ID")
         .map_err(|_| Error::MissingEnvVar("RAILWAY_PROJECT_ID"))?;
-    let service_id = std::env::var("RAILWAY_SERVICE_ID")
-        .map_err(|_| Error::MissingEnvVar("RAILWAY_SERVICE_ID"))?;
+    let service_id = std::env::var("RAILWAY_MONITORED_SERVICE_ID")
+        .map_err(|_| Error::MissingEnvVar("RAILWAY_MONITORED_SERVICE_ID"))?;
 
     if std::env::var("WEB_HOOK_URL").is_err() && std::env::var("PAGER_DUTY_TOKEN").is_err() {
         return Err(Error::MissingEnvVar(
@@ -134,7 +134,8 @@ pub fn optional() -> Result<HashMap<Alarm, AlarmConfig>> {
             );
         }
     }
-    Ok(dbg!(configs))
+    debug!("Configs: {configs:#?}");
+    Ok(configs)
 }
 
 #[cfg(test)]

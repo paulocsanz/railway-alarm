@@ -2,13 +2,9 @@
 
 *This is a draft, it's still in progress*
 
-Calls WebHook if the state change for some alarm defined through environment variables
+Calls WebHook and sends PagerDuty events if the state changes for some alarm
 
-Can monitor CPU, Memory, Disk, Ingress or Egress going over or under a threshold.
-
-Eventually should emit a pager-duty event, send a discord message, a slack message and an email.
-
-It should also monitor the health-check endpoint and costs, emitting alarms for them.
+Can monitor a HealthCheck endpoint and CPU, Memory, Disk, Ingress or Egress going over or under a threshold.
 
 ## Environment Variables:
 
@@ -22,15 +18,15 @@ It should also monitor the health-check endpoint and costs, emitting alarms for 
 
   Key used to sign the WebHook with HMAC SHA256, signature is sent in the X-HUB-SIGNATURE-256 header
 
-- RAILWAY_SERVICE_ID
+- RAILWAY_MONITORED_SERVICE_ID
 
   ID of service to monitor
 
 - WebHook or PagerDuty
 
-  To trigger any action from the alarm the WebHook and/or PagerDuty integration must be configured, check their sections to properly configure it
+  To trigger any action from the alarm you must set the WebHook and/or PagerDuty integration, check their sections to properly configure them
 
-### Thresholds
+### Limits
 
 These are the alarms that can be configured.
 
@@ -40,15 +36,15 @@ These are the alarms that can be configured.
 - `INGRESS_LOWER_LIMIT_GB`, `INGRESS_UPPER_LIMIT_GB`
 - `MEMORY_LOWER_LIMIT_GB`, `MEMORY_UPPER_LIMIT_GB`,
 
-The alarm threshold can be set by defining one or many of those limits, by setting the environment variable with the same name. If the variable is unset or 0 it will be ignored.
+The alarm thresholds can be set by defining one or many of those environment variables above. If the variable is unset or 0 it's measurement will be ignored.
 
-The alarm will be emitted if at least one of those limits is breached, if more than one alarm is on at the same time, both will be sent in the WebHook payload
+The alarm will be emitted if at least one of those limits is breached or stops breaching. The WebHook will receive the alarms that changed + all alarms that are active at the moment to enable the combination of them.
 
 ### Interval configuration
 
 It's possible to configure the details that will control the alarm, like the interval between measurements, the number of data-points to analyze and the minimal number of breaching data-points that will trigger an alarm.
 
-To set a generic configuration use the following environment variables.
+To set a global configuration use the following environment variables.
 
 - `PERIOD_MINUTES` is the number of minutes to use to evaluate the metric to create each individual data point for an alarm.
 
@@ -58,7 +54,7 @@ To set a generic configuration use the following environment variables.
 
 It's also possible to granularly configure the alarm by prefixing the environment variables above with the threshold related to the configuration, like `MEMORY_LOWER_LIMIT_GB_PERIOD_MINUTES` to configure the threshold `MEMORY_LOWER_LIMIT_GB`. `DATA_POINTS` and `DATA_POINTS_TO_ALARM` can also be configured in similar ways
 
-If no specific configuration exists for one alarm threshold, it will use the generic ones, if no generic configuration is set the alarm `PERIOD_MINUTES` will be `1`, `DATA_POINTS` will be `5` and `DATA_POINTS_TO_ALARM` will be `3`.
+If no specific configuration exists for one alarm threshold it will use the global ones, if no global configuration is set: `PERIOD_MINUTES` will be `1`, `DATA_POINTS` will be `5` and `DATA_POINTS_TO_ALARM` will be `3`.
 
 ### Set by Railway:
 
@@ -74,6 +70,8 @@ CPU_UPPER_LIMIT_VCPUS_PERIOD_MINUTES=5 # Will get average usage during those min
 CPU_UPPER_LIMIT_VCPUS_DATA_POINTS=5 # 25 minutes analyzed in total
 CPU_UPPER_LIMIT_VCPUS_DATA_POINTS_TO_ALARM=3 # If there is a breach for 15 minutes of the 25 (even if non consecutive) triggers alarm
 
+HEALTH_CHECK_FAILED=https://my-endpoint.com/healthcheck
+
 # Will use default period/data-points/data-points to alarm
 CPU_LOWER_LIMIT_VCPUS=0.1
 
@@ -87,15 +85,15 @@ To set the healthcheck GET endpoint use the `HEALTH_CHECK_FAILED` environment va
 
 The healthcheck endpoint must return a 200 status code to be computed as working.
 
-**Tip: use the same healthcheck you use for railway initial healthcheck test.**
+**Tip: use the same healthcheck endpoint you use for Railway's initial healthcheck test for the service.**
 
 Example:
 
 ```
-HEALTH_CHECK_FAILED=https://my-url.com/healchcheck
+HEALTH_CHECK_FAILED=https://my-url.com/healthcheck
 ```
 
-## PagerDuty Incidents
+## PagerDuty Alarms
 
 To configure the PagerDuty integration you must specify the following environment variables
   - `PAGER_DUTY_TOKEN`: specify the authentication token for PagerDuty's API
@@ -109,7 +107,7 @@ An alert event will be created for each alarm state change.
 
 ## WebHook API
 
-The endpoint specified by the environment variable `WEB_HOOK_URL` will be called if at least one alarm changed state. All active alarms will be sent in that WebHook, even if their state wasn't the one that changed.
+The endpoint specified by the environment variable `WEB_HOOK_URL` will be called if at least one alarm changed state. All active alarms will also be sent in that WebHook request, even if their state wasn't the one that changed.
 
 The JSON payload is signed with HMAC SHA256 and sent in the `X-HUG-SIGNATURE-256` HTTP header. The schema of the payload is described below:
 
