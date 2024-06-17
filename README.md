@@ -143,7 +143,7 @@ V0:
 - Healthcheck each replica
 - Allow adding an action to alarm: reboot/redeploy/stop
     - Reboot unhealthy service instances for example
-    - Reboot on memory leak (if RAM > 80%)
+    - Reboot on memory leak (if RAM > 80% for 2 hours)
     - Add one more replica if CPU usage is too large
     - etc
 - Configure alarm when >=, >, <= or <
