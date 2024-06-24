@@ -1,0 +1,10 @@
+query projects {
+  projects {
+    edges {
+      node {
+        id
+        name
+      }
+    }
+  }
+}
