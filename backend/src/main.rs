@@ -7,7 +7,7 @@ use tracing_subscriber::prelude::*;
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
     #[cfg(debug_assertions)]
-    let _ = dotenv::from_filename(".env.local")?;
+    let _ = dotenv::from_filename(".env.local");
 
     #[cfg(not(debug_assertions))]
     let _ = dotenv::dotenv();
